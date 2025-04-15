@@ -16,6 +16,7 @@ async function main() {
   const currency_code = "UNO"
   const amount = "100" // Change this value to send a different amount
 
+
   // Step 1: Check if trust line already exists
   const accountLines = await client.request({
     command: "account_lines",
