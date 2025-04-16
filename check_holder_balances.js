@@ -37,10 +37,12 @@ async function main() {
 
   for (const [key, holder] of Object.entries(holders)) {
     const tokenBalance = await getTrustLineBalance(client, holder.address, issuerAddress, tokenName)
+    const usdBalance = await getTrustLineBalance(client, holder.address, issuerAddress, "USD")
     const xrpBalance = await getXRPBalance(client, holder.address)
 
     console.log(`👤 ${key} (${holder.address})`)
     console.log(`   💰 ${tokenName}: ${tokenBalance}`)
+    console.log(`   💰 USD: ${usdBalance}`)
     console.log(`   ⚡ XRP: ${xrpBalance}`)
   }
 
