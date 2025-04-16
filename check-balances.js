@@ -22,11 +22,15 @@ async function checkBalances() {
   console.log("Connected to XRPL Testnet");
 
   try {
-    // Array of account types to check
-    const accounts = ['issuer', 'distributor', 'user'];
+    // Get all account types (excluding tokenInfo)
+    const accountTypes = Object.keys(accountInfo).filter(key => key !== 'tokenInfo');
+    
+    // Track total tokens in circulation
+    let totalTokensIssued = 0;
+    let userTokenBalances = {};
     
     // Check each account
-    for (const accountType of accounts) {
+    for (const accountType of accountTypes) {
       const address = accountInfo[accountType].address;
       console.log(`\n========= ${accountType.toUpperCase()} ACCOUNT =========`);
       console.log(`Address: ${address}`);
@@ -53,6 +57,12 @@ async function checkBalances() {
         console.log("Token Balances:");
         trustLines.result.lines.forEach(line => {
           console.log(`  ${line.currency}: ${line.balance} (Issuer: ${line.account})`);
+          
+          // Track token balances for user accounts
+          if (accountType.startsWith('user') && line.currency === accountInfo.tokenInfo.currency) {
+            userTokenBalances[accountType] = parseFloat(line.balance);
+          }
+          
           if (line.limit) {
             console.log(`  Trust Limit: ${line.limit}`);
           }
@@ -98,17 +108,25 @@ async function checkBalances() {
     // Check for token obligations (total issuances)
     console.log("\n========= TOKEN STATISTICS =========");
     try {
+      // Create an array of hot wallets (all non-issuer accounts)
+      const hotWallets = accountTypes
+        .filter(type => type !== 'issuer')
+        .map(type => accountInfo[type].address);
+      
       const gatewayBalances = await client.request({
         command: 'gateway_balances',
         account: accountInfo.issuer.address,
         ledger_index: 'validated',
-        hotwallet: [accountInfo.distributor.address]
+        hotwallet: hotWallets
       });
       
       if (gatewayBalances.result.obligations) {
         console.log("Total Tokens Issued:");
         for (const [currency, amount] of Object.entries(gatewayBalances.result.obligations)) {
           console.log(`  ${currency}: ${amount}`);
+          if (currency === accountInfo.tokenInfo.currency) {
+            totalTokensIssued = parseFloat(amount);
+          }
         }
       } else {
         console.log("No obligations found");
@@ -117,12 +135,32 @@ async function checkBalances() {
       if (gatewayBalances.result.balances) {
         console.log("\nHot Wallet Balances:");
         for (const [wallet, balances] of Object.entries(gatewayBalances.result.balances)) {
-          console.log(`  Wallet: ${wallet}`);
+          // Find the account type for this wallet address
+          const accountType = accountTypes.find(type => accountInfo[type].address === wallet) || 'Unknown';
+          console.log(`  ${accountType} (${wallet}):`);
           balances.forEach(balance => {
             console.log(`    ${balance.currency}: ${balance.value}`);
           });
         }
       }
+      
+      // Calculate total tokens held by users
+      const userAccounts = accountTypes.filter(type => type.startsWith('user'));
+      if (userAccounts.length > 0) {
+        console.log("\nUser Token Summary:");
+        let totalUserTokens = 0;
+        
+        for (const userType of Object.keys(userTokenBalances)) {
+          console.log(`  ${userType}: ${userTokenBalances[userType]} ${accountInfo.tokenInfo.currency}`);
+          totalUserTokens += userTokenBalances[userType];
+        }
+        
+        console.log(`\nTotal User Holdings: ${totalUserTokens} ${accountInfo.tokenInfo.currency}`);
+        const distributorBalance = totalTokensIssued - totalUserTokens;
+        console.log(`Distributor Balance: ${distributorBalance} ${accountInfo.tokenInfo.currency}`);
+        console.log(`Total Distribution: ${(totalUserTokens / totalTokensIssued * 100).toFixed(2)}% of supply`);
+      }
+      
     } catch (error) {
       console.log("Could not fetch gateway balances:", error.message);
     }
@@ -136,4 +174,9 @@ async function checkBalances() {
   console.log("\nDisconnected from XRPL");
 }
 
-checkBalances();
+// Check if this script is being run directly
+if (require.main === module) {
+  checkBalances();
+}
+
+module.exports = { checkBalances };
