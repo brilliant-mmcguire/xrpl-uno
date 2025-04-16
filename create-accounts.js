@@ -22,6 +22,7 @@ async function createAndFundAccounts() {
     console.log("User address:", userWallet.address);
 
     // Fund accounts on testnet
+    console.log("Funding accounts on testnet (this may take a moment)...");
     const issuerFunded = await client.fundWallet(issuerWallet);
     const distributorFunded = await client.fundWallet(distributorWallet);
     const userFunded = await client.fundWallet(userWallet);
